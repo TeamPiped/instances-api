@@ -1,0 +1,8 @@
+version: '3'
+
+services:
+  instances-api:
+    image: 1337kavin/piped-instances-api
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
