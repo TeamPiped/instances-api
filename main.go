@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -11,6 +13,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/etag"
+	"github.com/google/go-github/v42/github"
+	"golang.org/x/oauth2"
 )
 
 var monitored_instances = []Instance{}
@@ -21,12 +25,23 @@ type Instance struct {
 	Name        string `json:"name"`
 	ApiUrl      string `json:"api_url"`
 	Locations   string `json:"locations"`
+	Version     string `json:"version"`
+	UpToDate    bool   `json:"up_to_date"`
 	Cdn         bool   `json:"cdn"`
 	Registered  int    `json:"registered"`
 	LastChecked int64  `json:"last_checked"`
 }
 
 func monitorInstances() {
+	ctx := context.Background()
+	var tc *http.Client
+	if os.Getenv("GITHUB_TOKEN") != "" {
+		ts := oauth2.StaticTokenSource(
+			&oauth2.Token{AccessToken: os.Getenv("GITHUB_TOKEN")},
+		)
+		tc = oauth2.NewClient(ctx, ts)
+	}
+	gh_client := github.NewClient(tc)
 	// do forever
 	for {
 		// send a request to get markdown from GitHub
@@ -34,6 +49,22 @@ func monitorInstances() {
 		if err != nil {
 			log.Print(err)
 			continue
+		}
+
+		// Find Latest Commit from GitHub
+		var latest string
+		{
+			commits, _, err := gh_client.Repositories.ListCommits(ctx, "TeamPiped", "Piped-Backend", &github.CommitsListOptions{
+				ListOptions: github.ListOptions{
+					PerPage: 1,
+				},
+			})
+			if err != nil {
+				log.Print(err)
+				time.Sleep(time.Second * 5)
+				continue
+			}
+			latest = commits[0].GetSHA()
 		}
 
 		if resp.StatusCode == 200 {
@@ -79,6 +110,23 @@ func monitorInstances() {
 						log.Print(err)
 						continue
 					}
+					resp, err = http.Get(ApiUrl + "/version")
+					if err != nil {
+						log.Print(err)
+						continue
+					}
+					if resp.StatusCode != 200 {
+						continue
+					}
+					buf := new(strings.Builder)
+					_, err = io.Copy(buf, resp.Body)
+					if err != nil {
+						log.Print(err)
+						continue
+					}
+					version := strings.TrimSpace(buf.String())
+					version_split := strings.Split(version, "-")
+					hash := version_split[len(version_split)-1]
 
 					instances = append(instances, Instance{
 						Name:        strings.TrimSpace(split[0]),
@@ -87,6 +135,8 @@ func monitorInstances() {
 						Cdn:         strings.TrimSpace(split[3]) == "Yes",
 						Registered:  int(registered),
 						LastChecked: LastChecked,
+						Version:     version,
+						UpToDate:    strings.Contains(latest, hash),
 					})
 
 				}
@@ -103,11 +153,7 @@ func monitorInstances() {
 func main() {
 	go monitorInstances()
 
-	app := fiber.New(
-		fiber.Config{
-			Prefork: true,
-		},
-	)
+	app := fiber.New()
 	app.Use(etag.New())
 
 	app.Get("/", func(c *fiber.Ctx) error {
