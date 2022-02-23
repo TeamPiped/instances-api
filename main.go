@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/etag"
 	"github.com/google/go-github/v42/github"
 	"golang.org/x/oauth2"
@@ -154,6 +155,7 @@ func main() {
 	go monitorInstances()
 
 	app := fiber.New()
+	app.Use(cors.New())
 	app.Use(etag.New())
 
 	app.Get("/", func(c *fiber.Ctx) error {
