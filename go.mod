@@ -1,6 +1,6 @@
 module github.com/TeamPiped/instances-api/v2
 
-go 1.17
+go 1.19
 
 require github.com/gofiber/fiber/v2 v2.26.0
 
