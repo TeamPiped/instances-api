@@ -2,7 +2,10 @@ module github.com/TeamPiped/instances-api/v2
 
 go 1.19
 
-require github.com/gofiber/fiber/v2 v2.40.1
+require (
+	github.com/gofiber/fiber/v2 v2.40.1
+	github.com/google/go-github/v42 v42.0.0
+)
 
 require (
 	github.com/golang/protobuf v1.5.2 // indirect
@@ -17,7 +20,7 @@ require (
 
 require (
 	github.com/andybalholm/brotli v1.0.4 // indirect
-	github.com/google/go-github/v42 v42.0.0
+	github.com/google/go-github/v48 v48.2.0
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/klauspost/compress v1.15.9 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
