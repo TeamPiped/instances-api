@@ -20,7 +20,7 @@ require (
 
 require (
 	github.com/andybalholm/brotli v1.0.4 // indirect
-	github.com/google/go-github/v48 v48.2.0
+	github.com/google/go-github/v49 v49.0.0
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/klauspost/compress v1.15.9 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
