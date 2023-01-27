@@ -14,7 +14,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/etag"
-	"github.com/google/go-github/v42/github"
+	"github.com/google/go-github/v50/github"
 	"golang.org/x/oauth2"
 )
 
