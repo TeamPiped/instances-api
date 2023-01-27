@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/gofiber/fiber/v2 v2.41.0
-	github.com/google/go-github/v42 v42.0.0
+	github.com/google/go-github/v50 v50.0.0
 	github.com/google/go-github/v50 v50.0.0
 )
 
