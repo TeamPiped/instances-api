@@ -18,5 +18,8 @@
             "automerge": true,
             "platformAutomerge": true
         }
+    ],
+    "postUpdateOptions": [
+        "gomodTidy"
     ]
 }
