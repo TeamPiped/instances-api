@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
@@ -31,6 +32,12 @@ type Instance struct {
 	Cdn         bool   `json:"cdn"`
 	Registered  int    `json:"registered"`
 	LastChecked int64  `json:"last_checked"`
+	Cache       bool   `json:"cache"`
+	S3Enabled   bool   `json:"s3_enabled"`
+}
+
+type FrontendConfig struct {
+	S3Enabled bool `json:"s3Enabled"`
 }
 
 func monitorInstances() {
@@ -129,6 +136,53 @@ func monitorInstances() {
 					version_split := strings.Split(version, "-")
 					hash := version_split[len(version_split)-1]
 
+					resp, err = http.Get(ApiUrl + "/config")
+					if err != nil {
+						log.Print(err)
+						continue
+					}
+					if resp.StatusCode != 200 {
+						continue
+					}
+
+					bytes, err := io.ReadAll(resp.Body)
+
+					if err != nil {
+						log.Print(err)
+						continue
+					}
+
+					var config FrontendConfig
+
+					err = json.Unmarshal(bytes, &config)
+
+					if err != nil {
+						log.Print(err)
+						continue
+					}
+
+					cache_working := false
+
+					resp, err = http.Get(ApiUrl + "/trending?region=US")
+					if err != nil {
+						log.Print(err)
+						continue
+					}
+					if resp.StatusCode == 200 {
+						old_timing := resp.Header.Get("Server-Timing")
+						resp, err = http.Get(ApiUrl + "/trending?region=US")
+						if err != nil {
+							log.Print(err)
+							continue
+						}
+						if resp.StatusCode == 200 {
+							new_timing := resp.Header.Get("Server-Timing")
+							if old_timing == new_timing {
+								cache_working = true
+							}
+						}
+					}
+
 					instances = append(instances, Instance{
 						Name:        strings.TrimSpace(split[0]),
 						ApiUrl:      ApiUrl,
@@ -138,6 +192,8 @@ func monitorInstances() {
 						LastChecked: LastChecked,
 						Version:     version,
 						UpToDate:    strings.Contains(latest, hash),
+						Cache:       cache_working,
+						S3Enabled:   config.S3Enabled,
 					})
 
 				}
