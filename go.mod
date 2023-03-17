@@ -4,10 +4,12 @@ go 1.19
 
 require (
 	github.com/gofiber/fiber/v2 v2.42.0
-	github.com/google/go-github/v50 v50.1.0
+	github.com/google/go-github/v50 v50.2.0
 )
 
 require (
+	github.com/ProtonMail/go-crypto v0.0.0-20230217124315-7d5c6f04bbb8 // indirect
+	github.com/cloudflare/circl v1.1.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
@@ -30,7 +32,7 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.44.0 // indirect
 	github.com/valyala/tcplisten v1.0.0 // indirect
-	golang.org/x/crypto v0.0.0-20220214200702-86341886e292 // indirect
+	golang.org/x/crypto v0.7.0 // indirect
 	golang.org/x/oauth2 v0.6.0
 	golang.org/x/sys v0.6.0 // indirect
 )
