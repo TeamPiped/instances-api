@@ -3,7 +3,7 @@ module github.com/TeamPiped/instances-api/v2
 go 1.19
 
 require (
-	github.com/gofiber/fiber/v2 v2.45.0
+	github.com/gofiber/fiber/v2 v2.46.0
 	github.com/google/go-github/v50 v50.2.0
 )
 
