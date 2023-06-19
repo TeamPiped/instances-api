@@ -5,11 +5,12 @@ go 1.19
 require (
 	github.com/gofiber/fiber/v2 v2.47.0
 	github.com/google/go-github/v50 v50.2.0
+	github.com/google/go-github/v53 v53.2.0
 )
 
 require (
 	github.com/ProtonMail/go-crypto v0.0.0-20230217124315-7d5c6f04bbb8 // indirect
-	github.com/cloudflare/circl v1.1.0 // indirect
+	github.com/cloudflare/circl v1.3.3 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
