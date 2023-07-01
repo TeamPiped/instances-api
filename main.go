@@ -183,6 +183,16 @@ func monitorInstances() {
 						}
 					}
 
+					// check if instance can fetch videos
+					resp, err = http.Get(ApiUrl + "/streams/jNQXAC9IVRw")
+					if err != nil {
+						log.Print(err)
+						continue
+					}
+					if resp.StatusCode != 200 {
+						continue
+					}
+
 					instances = append(instances, Instance{
 						Name:        strings.TrimSpace(split[0]),
 						ApiUrl:      ApiUrl,
