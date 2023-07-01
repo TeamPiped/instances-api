@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"github.com/gofiber/fiber/v2"
 	"io"
 	"log"
 	"net/http"
@@ -12,10 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/etag"
-	"github.com/google/go-github/v50/github"
+	"github.com/google/go-github/v53/github"
 	"golang.org/x/oauth2"
 )
 
