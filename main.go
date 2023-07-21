@@ -3,7 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"github.com/gofiber/fiber/v2"
+	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -11,7 +12,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/gofiber/fiber/v2"
 
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/etag"
@@ -38,6 +42,110 @@ type Instance struct {
 
 type FrontendConfig struct {
 	S3Enabled bool `json:"s3Enabled"`
+}
+
+func getInstanceDetails(line string, latest string) (Instance, error) {
+	split := strings.Split(line, "|")
+	if len(split) >= 5 {
+		ApiUrl := strings.TrimSpace(split[1])
+
+		resp, err := http.Get(ApiUrl + "/healthcheck")
+		if err != nil {
+			return Instance{}, err
+		}
+		LastChecked := time.Now().Unix()
+		if resp.StatusCode != 200 {
+			return Instance{}, errors.New("Invalid response code")
+		}
+		resp, err = http.Get(ApiUrl + "/registered/badge")
+		if err != nil {
+			return Instance{}, err
+		}
+		registered, err := strconv.ParseInt(number_re.FindString(resp.Request.URL.Path), 10, 32)
+		if err != nil {
+			return Instance{}, err
+		}
+		resp, err = http.Get(ApiUrl + "/version")
+		if err != nil {
+			return Instance{}, err
+		}
+		if resp.StatusCode != 200 {
+			return Instance{}, errors.New("Invalid response code")
+		}
+		buf := new(strings.Builder)
+		_, err = io.Copy(buf, resp.Body)
+		if err != nil {
+			return Instance{}, err
+		}
+		version := strings.TrimSpace(buf.String())
+		version_split := strings.Split(version, "-")
+		hash := version_split[len(version_split)-1]
+
+		resp, err = http.Get(ApiUrl + "/config")
+		if err != nil {
+			return Instance{}, err
+		}
+		if resp.StatusCode != 200 {
+			return Instance{}, errors.New("Invalid response code")
+		}
+
+		bytes, err := io.ReadAll(resp.Body)
+
+		if err != nil {
+			return Instance{}, err
+		}
+
+		var config FrontendConfig
+
+		err = json.Unmarshal(bytes, &config)
+
+		if err != nil {
+			return Instance{}, err
+		}
+
+		cache_working := false
+
+		resp, err = http.Get(ApiUrl + "/trending?region=US")
+		if err != nil {
+			return Instance{}, err
+		}
+		if resp.StatusCode == 200 {
+			old_timing := resp.Header.Get("Server-Timing")
+			resp, err = http.Get(ApiUrl + "/trending?region=US")
+			if err != nil {
+				return Instance{}, err
+			}
+			if resp.StatusCode == 200 {
+				new_timing := resp.Header.Get("Server-Timing")
+				if old_timing == new_timing {
+					cache_working = true
+				}
+			}
+		}
+
+		// check if instance can fetch videos
+		resp, err = http.Get(ApiUrl + "/streams/jNQXAC9IVRw")
+		if err != nil {
+			return Instance{}, err
+		}
+		if resp.StatusCode != 200 {
+			return Instance{}, errors.New("Invalid status code")
+		}
+
+		return Instance{
+			Name:        strings.TrimSpace(split[0]),
+			ApiUrl:      ApiUrl,
+			Locations:   strings.TrimSpace(split[2]),
+			Cdn:         strings.TrimSpace(split[3]) == "Yes",
+			Registered:  int(registered),
+			LastChecked: LastChecked,
+			Version:     version,
+			UpToDate:    strings.Contains(latest, hash),
+			Cache:       cache_working,
+			S3Enabled:   config.S3Enabled,
+		}, nil
+	}
+	return Instance{}, errors.New("Invalid line")
 }
 
 func monitorInstances() {
@@ -90,124 +198,25 @@ func monitorInstances() {
 
 			instances := []Instance{}
 
-			skipped := 0
-			for _, line := range lines {
-				split := strings.Split(line, "|")
-				if len(split) >= 5 {
-					if skipped < 2 {
-						skipped++
-						continue
-					}
-					ApiUrl := strings.TrimSpace(split[1])
-					resp, err := http.Get(ApiUrl + "/healthcheck")
-					if err != nil {
-						log.Print(err)
-						continue
-					}
-					LastChecked := time.Now().Unix()
-					if resp.StatusCode != 200 {
-						continue
-					}
-					resp, err = http.Get(ApiUrl + "/registered/badge")
-					if err != nil {
-						log.Print(err)
-						continue
-					}
-					registered, err := strconv.ParseInt(number_re.FindString(resp.Request.URL.Path), 10, 32)
-					if err != nil {
-						log.Print(err)
-						continue
-					}
-					resp, err = http.Get(ApiUrl + "/version")
-					if err != nil {
-						log.Print(err)
-						continue
-					}
-					if resp.StatusCode != 200 {
-						continue
-					}
-					buf := new(strings.Builder)
-					_, err = io.Copy(buf, resp.Body)
-					if err != nil {
-						log.Print(err)
-						continue
-					}
-					version := strings.TrimSpace(buf.String())
-					version_split := strings.Split(version, "-")
-					hash := version_split[len(version_split)-1]
-
-					resp, err = http.Get(ApiUrl + "/config")
-					if err != nil {
-						log.Print(err)
-						continue
-					}
-					if resp.StatusCode != 200 {
-						continue
-					}
-
-					bytes, err := io.ReadAll(resp.Body)
-
-					if err != nil {
-						log.Print(err)
-						continue
-					}
-
-					var config FrontendConfig
-
-					err = json.Unmarshal(bytes, &config)
-
-					if err != nil {
-						log.Print(err)
-						continue
-					}
-
-					cache_working := false
-
-					resp, err = http.Get(ApiUrl + "/trending?region=US")
-					if err != nil {
-						log.Print(err)
-						continue
-					}
-					if resp.StatusCode == 200 {
-						old_timing := resp.Header.Get("Server-Timing")
-						resp, err = http.Get(ApiUrl + "/trending?region=US")
-						if err != nil {
-							log.Print(err)
-							continue
-						}
-						if resp.StatusCode == 200 {
-							new_timing := resp.Header.Get("Server-Timing")
-							if old_timing == new_timing {
-								cache_working = true
-							}
-						}
-					}
-
-					// check if instance can fetch videos
-					resp, err = http.Get(ApiUrl + "/streams/jNQXAC9IVRw")
-					if err != nil {
-						log.Print(err)
-						continue
-					}
-					if resp.StatusCode != 200 {
-						continue
-					}
-
-					instances = append(instances, Instance{
-						Name:        strings.TrimSpace(split[0]),
-						ApiUrl:      ApiUrl,
-						Locations:   strings.TrimSpace(split[2]),
-						Cdn:         strings.TrimSpace(split[3]) == "Yes",
-						Registered:  int(registered),
-						LastChecked: LastChecked,
-						Version:     version,
-						UpToDate:    strings.Contains(latest, hash),
-						Cache:       cache_working,
-						S3Enabled:   config.S3Enabled,
-					})
-
+			wg := sync.WaitGroup{}
+			for index, line := range lines {
+				if index < 3 {
+					fmt.Println(line)
+					continue
 				}
+
+				wg.Add(1)
+				go func(line string) {
+					instance, err := getInstanceDetails(line, latest)
+					if err == nil {
+						instances = append(instances, instance)
+					} else {
+						log.Print(err)
+					}
+					wg.Done()
+				}(line)
 			}
+			wg.Wait()
 
 			// update the global instances variable
 			monitored_instances = instances
