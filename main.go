@@ -238,11 +238,12 @@ func monitorInstances() {
 
 			lines := strings.Split(buf.String(), "\n")
 
-			var instances []Instance
+			instancesMap := make(map[int]Instance)
 
 			wg := sync.WaitGroup{}
 
 			skipped := 0
+			checking := 0
 			for _, line := range lines {
 				split := strings.Split(line, "|")
 
@@ -257,17 +258,27 @@ func monitorInstances() {
 				}
 
 				wg.Add(1)
-				go func(split []string) {
+				go func(i int, split []string) {
 					defer wg.Done()
 					instance, err := getInstanceDetails(split, latest)
 					if err == nil {
-						instances = append(instances, instance)
+						instancesMap[i] = instance
 					} else {
 						log.Print(err)
 					}
-				}(split)
+				}(checking, split)
+				checking++
 			}
 			wg.Wait()
+
+			// Map to ordered array
+			var instances []Instance
+			for i := 0; i < checking; i++ {
+				instance, ok := instancesMap[i]
+				if ok {
+					instances = append(instances, instance)
+				}
+			}
 
 			// update the global instances variable
 			monitored_instances = instances
