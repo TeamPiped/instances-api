@@ -238,7 +238,7 @@ func monitorInstances() {
 
 			lines := strings.Split(buf.String(), "\n")
 
-			instances := []Instance{}
+			var instances []Instance
 
 			wg := sync.WaitGroup{}
 
@@ -288,6 +288,8 @@ func main() {
 		return c.JSON(monitored_instances)
 	})
 
-	fmt.Println("Listening on http://localhost:3000")
-	app.Listen(":3000")
+	err := app.Listen(":3000")
+	if err != nil {
+		panic(err)
+	}
 }
