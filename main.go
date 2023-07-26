@@ -87,11 +87,7 @@ func getConfig(ApiUrl string) (FrontendConfig, error) {
 	return config, nil
 }
 
-func getInstanceDetails(line string, latest string) (Instance, error) {
-	split := strings.Split(line, "|")
-	if len(split) < 5 {
-		return Instance{}, errors.New(fmt.Sprintf("Invalid line: %s", line))
-	}
+func getInstanceDetails(split []string, latest string) (Instance, error) {
 	ApiUrl := strings.TrimSpace(split[1])
 
 	wg := sync.WaitGroup{}
@@ -245,22 +241,31 @@ func monitorInstances() {
 			instances := []Instance{}
 
 			wg := sync.WaitGroup{}
-			for index, line := range lines {
-				// skip first two and last line
-				if index < 2 || index == len(lines)-1 {
+
+			skipped := 0
+			for _, line := range lines {
+				split := strings.Split(line, "|")
+
+				if len(split) < 5 {
+					continue
+				}
+
+				// skip first two table lines
+				if skipped < 2 {
+					skipped++
 					continue
 				}
 
 				wg.Add(1)
-				go func(line string) {
+				go func(split []string) {
 					defer wg.Done()
-					instance, err := getInstanceDetails(line, latest)
+					instance, err := getInstanceDetails(split, latest)
 					if err == nil {
 						instances = append(instances, instance)
 					} else {
 						log.Print(err)
 					}
-				}(line)
+				}(split)
 			}
 			wg.Wait()
 
