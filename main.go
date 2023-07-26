@@ -44,8 +44,12 @@ type FrontendConfig struct {
 	S3Enabled bool `json:"s3Enabled"`
 }
 
+var client = http.Client{
+	Timeout: 10 * time.Second,
+}
+
 func testUrl(url string) (*http.Response, error) {
-	resp, err := http.Get(url)
+	resp, err := client.Get(url)
 	if err != nil {
 		return resp, err
 	}
