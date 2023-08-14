@@ -28,20 +28,24 @@ var monitored_instances = []Instance{}
 var number_re = regexp.MustCompile(`(?m)(\d+)`)
 
 type Instance struct {
-	Name        string `json:"name"`
-	ApiUrl      string `json:"api_url"`
-	Locations   string `json:"locations"`
-	Version     string `json:"version"`
-	UpToDate    bool   `json:"up_to_date"`
-	Cdn         bool   `json:"cdn"`
-	Registered  int    `json:"registered"`
-	LastChecked int64  `json:"last_checked"`
-	Cache       bool   `json:"cache"`
-	S3Enabled   bool   `json:"s3_enabled"`
+	Name                 string `json:"name"`
+	ApiUrl               string `json:"api_url"`
+	Locations            string `json:"locations"`
+	Version              string `json:"version"`
+	UpToDate             bool   `json:"up_to_date"`
+	Cdn                  bool   `json:"cdn"`
+	Registered           int    `json:"registered"`
+	LastChecked          int64  `json:"last_checked"`
+	Cache                bool   `json:"cache"`
+	S3Enabled            bool   `json:"s3_enabled"`
+	ImageProxyUrl        string `json:"image_proxy_url"`
+	RegistrationDisabled bool   `json:"registration_disabled"`
 }
 
 type FrontendConfig struct {
-	S3Enabled bool `json:"s3Enabled"`
+	S3Enabled            bool   `json:"s3Enabled"`
+	ImageProxyUrl        string `json:"imageProxy"`
+	RegistrationDisabled bool   `json:"registrationDisabled"`
 }
 
 var client = http.Client{
@@ -182,16 +186,18 @@ func getInstanceDetails(split []string, latest string) (Instance, error) {
 	}
 
 	return Instance{
-		Name:        strings.TrimSpace(split[0]),
-		ApiUrl:      ApiUrl,
-		Locations:   strings.TrimSpace(split[2]),
-		Cdn:         strings.TrimSpace(split[3]) == "Yes",
-		Registered:  int(registered),
-		LastChecked: lastChecked,
-		Version:     version,
-		UpToDate:    strings.Contains(latest, hash),
-		Cache:       cacheWorking,
-		S3Enabled:   config.S3Enabled,
+		Name:                 strings.TrimSpace(split[0]),
+		ApiUrl:               ApiUrl,
+		Locations:            strings.TrimSpace(split[2]),
+		Cdn:                  strings.TrimSpace(split[3]) == "Yes",
+		Registered:           int(registered),
+		LastChecked:          lastChecked,
+		Version:              version,
+		UpToDate:             strings.Contains(latest, hash),
+		Cache:                cacheWorking,
+		S3Enabled:            config.S3Enabled,
+		ImageProxyUrl:        config.ImageProxyUrl,
+		RegistrationDisabled: config.RegistrationDisabled,
 	}, nil
 }
 
