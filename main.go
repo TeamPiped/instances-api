@@ -44,7 +44,7 @@ type Instance struct {
 
 type FrontendConfig struct {
 	S3Enabled            bool   `json:"s3Enabled"`
-	ImageProxyUrl        string `json:"imageProxy"`
+	ImageProxyUrl        string `json:"imageProxyUrl"`
 	RegistrationDisabled bool   `json:"registrationDisabled"`
 }
 
