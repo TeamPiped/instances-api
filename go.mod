@@ -5,6 +5,7 @@ go 1.19
 require (
 	github.com/gofiber/fiber/v2 v2.48.0
 	github.com/google/go-github/v53 v53.2.0
+	github.com/google/go-github/v54 v54.0.0
 )
 
 require (
