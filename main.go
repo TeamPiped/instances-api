@@ -48,6 +48,14 @@ type FrontendConfig struct {
 	RegistrationDisabled bool   `json:"registrationDisabled"`
 }
 
+type PipedStreams struct {
+	Url string `json:"url"`
+}
+
+type Streams struct {
+	VideoStreams []PipedStreams `json:"videoStreams"`
+}
+
 var client = http.Client{
 	Timeout: 10 * time.Second,
 }
@@ -93,6 +101,23 @@ func getConfig(ApiUrl string) (FrontendConfig, error) {
 		return FrontendConfig{}, err
 	}
 	return config, nil
+}
+
+func getStreams(ApiUrl string, VideoId string) (Streams, error) {
+	resp, err := testUrl(ApiUrl + "/streams/" + VideoId)
+	if err != nil {
+		return Streams{}, err
+	}
+	bytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return Streams{}, err
+	}
+	var streams Streams
+	err = json.Unmarshal(bytes, &streams)
+	if err != nil {
+		return Streams{}, err
+	}
+	return streams, nil
 }
 
 func getInstanceDetails(split []string, latest string) (Instance, error) {
@@ -176,7 +201,16 @@ func getInstanceDetails(split []string, latest string) (Instance, error) {
 	go func() {
 		defer wg.Done()
 		// check if instance can fetch videos
-		if _, err := testUrl(ApiUrl + "/streams/jNQXAC9IVRw"); err != nil {
+		streams, err := getStreams(ApiUrl, "jNQXAC9IVRw")
+		if err != nil {
+			errorChannel <- err
+			return
+		}
+		if len(streams.VideoStreams) == 0 {
+			errorChannel <- errors.New("no streams")
+		}
+		// head request to check first stream
+		if _, err := testUrl(streams.VideoStreams[0].Url); err != nil {
 			errorChannel <- err
 		}
 	}()
@@ -293,7 +327,7 @@ func monitorInstances() {
 			// update the global instances variable
 			monitored_instances = instances
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		time.Sleep(time.Minute)
 	}
 }
