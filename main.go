@@ -61,7 +61,12 @@ var client = http.Client{
 }
 
 func testUrl(url string) (*http.Response, error) {
-	resp, err := client.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "Piped-Instances-API/(https://github.com/TeamPiped/instances-api)")
+	resp, err := client.Do(req)
 	if err != nil {
 		return resp, err
 	}
@@ -248,7 +253,13 @@ func monitorInstances() {
 	// do forever
 	for {
 		// send a request to get markdown from GitHub
-		resp, err := http.Get("https://raw.githubusercontent.com/wiki/TeamPiped/Piped-Frontend/Instances.md")
+		req, err := http.NewRequest("GET", "https://raw.githubusercontent.com/wiki/TeamPiped/Piped-Frontend/Instances.md", nil)
+		if err != nil {
+			log.Print(err)
+			continue
+		}
+		req.Header.Set("User-Agent", "Piped-Instances-API/(https://github.com/TeamPiped/instances-api)")
+		resp, err := client.Do(req)
 		if err != nil {
 			log.Print(err)
 			continue
