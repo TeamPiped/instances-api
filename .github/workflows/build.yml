@@ -19,5 +19,6 @@ jobs:
         with:
           check-latest: true
           cache: true
+          go-version: "stable"
       - name: Build app
         run: go build -o app
