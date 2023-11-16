@@ -7,6 +7,7 @@ toolchain go1.21.0
 require (
 	github.com/gofiber/fiber/v2 v2.51.0
 	github.com/google/go-github/v54 v54.0.0
+	github.com/google/go-github/v56 v56.0.0
 )
 
 require (
