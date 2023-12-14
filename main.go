@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/InfluxCommunity/influxdb3-go/influxdb3"
 	"io"
 	"log"
 	"net/http"
@@ -28,18 +29,21 @@ var monitored_instances = []Instance{}
 var number_re = regexp.MustCompile(`(?m)(\d+)`)
 
 type Instance struct {
-	Name                 string `json:"name"`
-	ApiUrl               string `json:"api_url"`
-	Locations            string `json:"locations"`
-	Version              string `json:"version"`
-	UpToDate             bool   `json:"up_to_date"`
-	Cdn                  bool   `json:"cdn"`
-	Registered           int    `json:"registered"`
-	LastChecked          int64  `json:"last_checked"`
-	Cache                bool   `json:"cache"`
-	S3Enabled            bool   `json:"s3_enabled"`
-	ImageProxyUrl        string `json:"image_proxy_url"`
-	RegistrationDisabled bool   `json:"registration_disabled"`
+	Name                 string  `json:"name"`
+	ApiUrl               string  `json:"api_url"`
+	Locations            string  `json:"locations"`
+	Version              string  `json:"version"`
+	UpToDate             bool    `json:"up_to_date"`
+	Cdn                  bool    `json:"cdn"`
+	Registered           int     `json:"registered"`
+	LastChecked          int64   `json:"last_checked"`
+	Cache                bool    `json:"cache"`
+	S3Enabled            bool    `json:"s3_enabled"`
+	ImageProxyUrl        string  `json:"image_proxy_url"`
+	RegistrationDisabled bool    `json:"registration_disabled"`
+	Uptime24h            float32 `json:"uptime_24h"`
+	Uptime7d             float32 `json:"uptime_7d"`
+	Uptime30d            float32 `json:"uptime_30d"`
 }
 
 type FrontendConfig struct {
@@ -59,6 +63,8 @@ type Streams struct {
 var client = http.Client{
 	Timeout: 10 * time.Second,
 }
+
+var influxdbClient *influxdb3.Client
 
 func testUrl(url string) (*http.Response, error) {
 	req, err := http.NewRequest("GET", url, nil)
@@ -125,6 +131,43 @@ func getStreams(ApiUrl string, VideoId string) (Streams, error) {
 	return streams, nil
 }
 
+func storeUptimeHistory(apiUrl string, uptimeStatus bool) {
+	// Create a new point
+	p := influxdb3.NewPointWithMeasurement("uptime").
+		SetTag("apiUrl", apiUrl).
+		SetField("status", uptimeStatus).
+		SetTimestamp(time.Now())
+
+	// Write the point
+	err := influxdbClient.WritePoints(context.Background(), p)
+	if err != nil {
+		log.Print(err)
+	}
+}
+
+func getUptimePercentage(apiUrl string, hours int) (float32, error) {
+	// Fetch uptime history from InfluxDB for the given period
+	query := fmt.Sprintf(`SELECT "status" FROM "uptime" WHERE "apiUrl" = '%s' AND time >= now() - interval '%d hours'`, apiUrl, hours)
+	result, err := influxdbClient.Query(context.Background(), query)
+	if err != nil {
+		return 0, err
+	}
+
+	// Calculate uptime percentage
+	successCount, failureCount := 0, 0
+	for result.Next() {
+		uptimeStatus := result.Value()["status"].(bool)
+		if uptimeStatus {
+			successCount++
+		} else {
+			failureCount++
+		}
+	}
+	uptimePercentage := float32(successCount) / float32(successCount+failureCount) * 100
+
+	return uptimePercentage, nil
+}
+
 func getInstanceDetails(split []string, latest string) (Instance, error) {
 	ApiUrl := strings.TrimSpace(split[1])
 
@@ -132,6 +175,8 @@ func getInstanceDetails(split []string, latest string) (Instance, error) {
 	errorChannel := make(chan error)
 	// the amount of tests to do
 	wg.Add(6)
+	// Add 3 more for uptime history
+	wg.Add(3)
 
 	var lastChecked int64
 	var registered int64
@@ -220,9 +265,47 @@ func getInstanceDetails(split []string, latest string) (Instance, error) {
 		}
 	}()
 
+	var uptime24h, uptime7d, uptime30d float32
+
+	go func() {
+		defer wg.Done()
+		var err error
+		uptime24h, err = getUptimePercentage(ApiUrl, 24)
+		if err != nil {
+			errorChannel <- err
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		var err error
+		uptime7d, err = getUptimePercentage(ApiUrl, 24*7)
+		if err != nil {
+			errorChannel <- err
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		var err error
+		uptime30d, err = getUptimePercentage(ApiUrl, 24*30)
+		if err != nil {
+			errorChannel <- err
+		}
+	}()
+
 	for err := range errorChannel {
+		go func() {
+			// Store the uptime history
+			storeUptimeHistory(ApiUrl, err == nil)
+		}()
 		return Instance{}, err
 	}
+
+	go func() {
+		// Store the uptime history
+		storeUptimeHistory(ApiUrl, true)
+	}()
 
 	return Instance{
 		Name:                 strings.TrimSpace(split[0]),
@@ -237,6 +320,9 @@ func getInstanceDetails(split []string, latest string) (Instance, error) {
 		S3Enabled:            config.S3Enabled,
 		ImageProxyUrl:        config.ImageProxyUrl,
 		RegistrationDisabled: config.RegistrationDisabled,
+		Uptime24h:            uptime24h,
+		Uptime7d:             uptime7d,
+		Uptime30d:            uptime30d,
 	}, nil
 }
 
@@ -344,6 +430,20 @@ func monitorInstances() {
 }
 
 func main() {
+	// create influxdb client
+	{
+		client, err := influxdb3.New(influxdb3.ClientConfig{
+			Host:     os.Getenv("INFLUXDB_URL"),
+			Token:    os.Getenv("INFLUXDB_TOKEN"),
+			Database: os.Getenv("INFLUXDB_DATABASE"),
+		})
+		if err != nil {
+			panic(err)
+		}
+
+		influxdbClient = client
+	}
+
 	go monitorInstances()
 
 	app := fiber.New()
