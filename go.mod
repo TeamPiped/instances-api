@@ -6,7 +6,7 @@ toolchain go1.21.0
 
 require (
 	github.com/InfluxCommunity/influxdb3-go v0.6.0
-	github.com/gofiber/fiber/v2 v2.52.2
+	github.com/gofiber/fiber/v2 v2.52.3
 	github.com/google/go-github/v54 v54.0.0
 )
 
