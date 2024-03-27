@@ -20,8 +20,7 @@ import (
 
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/etag"
-	"github.com/google/go-github/v54/github"
-	"golang.org/x/oauth2"
+	"github.com/google/go-github/v60/github"
 )
 
 var monitored_instances = []Instance{}
@@ -138,8 +137,10 @@ func storeUptimeHistory(apiUrl string, uptimeStatus bool) {
 		SetField("status", uptimeStatus).
 		SetTimestamp(time.Now())
 
+	points := []*influxdb3.Point{p}
+
 	// Write the point
-	err := influxdbClient.WritePoints(context.Background(), p)
+	err := influxdbClient.WritePoints(context.Background(), points)
 	if err != nil {
 		log.Print(err)
 	}
@@ -328,14 +329,12 @@ func getInstanceDetails(split []string, latest string) (Instance, error) {
 
 func monitorInstances() {
 	ctx := context.Background()
-	var tc *http.Client
+	ghClient := github.NewClient(nil)
+
 	if os.Getenv("GITHUB_TOKEN") != "" {
-		ts := oauth2.StaticTokenSource(
-			&oauth2.Token{AccessToken: os.Getenv("GITHUB_TOKEN")},
-		)
-		tc = oauth2.NewClient(ctx, ts)
+		ghClient = ghClient.WithAuthToken(os.Getenv("GITHUB_TOKEN"))
 	}
-	gh_client := github.NewClient(tc)
+
 	// do forever
 	for {
 		// send a request to get markdown from GitHub
@@ -354,7 +353,7 @@ func monitorInstances() {
 		// Find Latest Commit from GitHub
 		var latest string
 		{
-			commits, _, err := gh_client.Repositories.ListCommits(ctx, "TeamPiped", "Piped-Backend", &github.CommitsListOptions{
+			commits, _, err := ghClient.Repositories.ListCommits(ctx, "TeamPiped", "Piped-Backend", &github.CommitsListOptions{
 				ListOptions: github.ListOptions{
 					PerPage: 1,
 				},
