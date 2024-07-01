@@ -173,7 +173,7 @@ func getInstanceDetails(split []string, latest string) (Instance, error) {
 	ApiUrl := strings.TrimSpace(split[1])
 
 	wg := sync.WaitGroup{}
-	errorChannel := make(chan error)
+	errorChannel := make(chan error, 9)
 	// the amount of tests to do
 	wg.Add(6)
 	// Add 3 more for uptime history
