@@ -9,6 +9,7 @@ require (
 	github.com/InfluxCommunity/influxdb3-go/v2 v2.0.0
 	github.com/gofiber/fiber/v2 v2.52.5
 	github.com/google/go-github/v62 v62.0.0
+	github.com/google/go-github/v68 v68.0.0
 )
 
 require (
