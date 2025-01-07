@@ -338,7 +338,7 @@ func monitorInstances() {
 	// do forever
 	for {
 		// send a request to get markdown from GitHub
-		req, err := http.NewRequest("GET", "https://raw.githubusercontent.com/wiki/TeamPiped/Piped-Frontend/Instances.md", nil)
+		req, err := http.NewRequest("GET", "https://raw.githubusercontent.com/TeamPiped/documentation/refs/heads/main/content/docs/public-instances/index.md", nil)
 		if err != nil {
 			log.Print(err)
 			continue
