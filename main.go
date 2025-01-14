@@ -23,6 +23,7 @@ import (
 	"github.com/google/go-github/v62/github"
 )
 
+var base_instance_infos = []Instance{}
 var monitored_instances = []Instance{}
 
 var number_re = regexp.MustCompile(`(?m)(\d+)`)
@@ -144,9 +145,7 @@ func getUptimePercentage(apiUrl string, hours int) (float32, error) {
 	return uptimePercentage, nil
 }
 
-func getInstanceDetails(split []string, latest string) (Instance, error) {
-	ApiUrl := strings.TrimSpace(split[1])
-
+func getInstanceDetails(instanceBaseInfo Instance, latest string) (Instance, error) {
 	wg := sync.WaitGroup{}
 	errorChannel := make(chan error, 9)
 	// the amount of tests to do
@@ -168,7 +167,7 @@ func getInstanceDetails(split []string, latest string) (Instance, error) {
 
 	go func() {
 		defer wg.Done()
-		if _, err := testUrl(ApiUrl + "/healthcheck"); err != nil {
+		if _, err := testUrl(instanceBaseInfo.ApiUrl + "/healthcheck"); err != nil {
 			errorChannel <- err
 			return
 		}
@@ -177,7 +176,7 @@ func getInstanceDetails(split []string, latest string) (Instance, error) {
 
 	go func() {
 		defer wg.Done()
-		resp, err := testUrl(ApiUrl + "/registered/badge")
+		resp, err := testUrl(instanceBaseInfo.ApiUrl + "/registered/badge")
 		if err != nil {
 			errorChannel <- err
 			return
@@ -190,7 +189,7 @@ func getInstanceDetails(split []string, latest string) (Instance, error) {
 
 	go func() {
 		defer wg.Done()
-		resp, err := testUrl(ApiUrl + "/version")
+		resp, err := testUrl(instanceBaseInfo.ApiUrl + "/version")
 		if err != nil {
 			errorChannel <- err
 			return
@@ -209,7 +208,7 @@ func getInstanceDetails(split []string, latest string) (Instance, error) {
 	go func() {
 		defer wg.Done()
 		var err error
-		config, err = getConfig(ApiUrl)
+		config, err = getConfig(instanceBaseInfo.ApiUrl)
 		if err != nil {
 			errorChannel <- err
 		}
@@ -218,7 +217,7 @@ func getInstanceDetails(split []string, latest string) (Instance, error) {
 	go func() {
 		defer wg.Done()
 		var err error
-		cacheWorking, err = testCaching(ApiUrl)
+		cacheWorking, err = testCaching(instanceBaseInfo.ApiUrl)
 		if err != nil {
 			errorChannel <- err
 		}
@@ -229,7 +228,7 @@ func getInstanceDetails(split []string, latest string) (Instance, error) {
 	go func() {
 		defer wg.Done()
 		var err error
-		uptime24h, err = getUptimePercentage(ApiUrl, 24)
+		uptime24h, err = getUptimePercentage(instanceBaseInfo.ApiUrl, 24)
 		if err != nil {
 			errorChannel <- err
 		}
@@ -238,7 +237,7 @@ func getInstanceDetails(split []string, latest string) (Instance, error) {
 	go func() {
 		defer wg.Done()
 		var err error
-		uptime7d, err = getUptimePercentage(ApiUrl, 24*7)
+		uptime7d, err = getUptimePercentage(instanceBaseInfo.ApiUrl, 24*7)
 		if err != nil {
 			errorChannel <- err
 		}
@@ -247,7 +246,7 @@ func getInstanceDetails(split []string, latest string) (Instance, error) {
 	go func() {
 		defer wg.Done()
 		var err error
-		uptime30d, err = getUptimePercentage(ApiUrl, 24*30)
+		uptime30d, err = getUptimePercentage(instanceBaseInfo.ApiUrl, 24*30)
 		if err != nil {
 			errorChannel <- err
 		}
@@ -256,21 +255,21 @@ func getInstanceDetails(split []string, latest string) (Instance, error) {
 	for err := range errorChannel {
 		go func() {
 			// Store the uptime history
-			storeUptimeHistory(ApiUrl, err == nil)
+			storeUptimeHistory(instanceBaseInfo.ApiUrl, err == nil)
 		}()
 		return Instance{}, err
 	}
 
 	go func() {
 		// Store the uptime history
-		storeUptimeHistory(ApiUrl, true)
+		storeUptimeHistory(instanceBaseInfo.ApiUrl, true)
 	}()
 
 	return Instance{
-		Name:                 strings.TrimSpace(split[0]),
-		ApiUrl:               ApiUrl,
-		Locations:            strings.TrimSpace(split[2]),
-		Cdn:                  strings.TrimSpace(split[3]) == "Yes",
+		Name:                 instanceBaseInfo.Name,
+		ApiUrl:               instanceBaseInfo.ApiUrl,
+		Locations:            instanceBaseInfo.Locations,
+		Cdn:                  instanceBaseInfo.Cdn,
 		Registered:           int(registered),
 		LastChecked:          lastChecked,
 		Version:              version,
@@ -285,6 +284,61 @@ func getInstanceDetails(split []string, latest string) (Instance, error) {
 	}, nil
 }
 
+func getInstancesBaseList() ([]Instance, error) {
+	req, err := http.NewRequest("GET", "https://raw.githubusercontent.com/TeamPiped/documentation/refs/heads/main/content/docs/public-instances/index.md", nil)
+	if err != nil {
+		log.Print(err)
+		return []Instance{}, err
+	}
+	req.Header.Set("User-Agent", "Piped-Instances-API/(https://github.com/TeamPiped/instances-api)")
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Print(err)
+		return []Instance{}, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return []Instance{}, errors.New("Invalid response code when fetching instances!")
+	}
+	// parse the response
+	buf := new(strings.Builder)
+	_, err = io.Copy(buf, resp.Body)
+	if err != nil {
+		log.Print(err)
+		return []Instance{}, err
+	}
+
+	lines := strings.Split(buf.String(), "\n")
+
+	skipped := 0
+	var instances []Instance
+	for _, line := range lines {
+		split := strings.Split(line, "|")
+
+		if len(split) < 5 {
+			continue
+		}
+
+		// skip first two table lines
+		if skipped < 2 {
+			skipped++
+			continue
+		}
+
+		instance := Instance{
+			Name:      split[0],
+			ApiUrl:    strings.TrimSpace(split[1]),
+			Locations: split[2],
+			Cdn:       split[3] == "Yes",
+		}
+		instances = append(instances, instance)
+	}
+	base_instance_infos = instances
+
+	return instances, nil
+}
+
 func monitorInstances() {
 	ctx := context.Background()
 	ghClient := github.NewClient(nil)
@@ -296,17 +350,6 @@ func monitorInstances() {
 	// do forever
 	for {
 		// send a request to get markdown from GitHub
-		req, err := http.NewRequest("GET", "https://raw.githubusercontent.com/TeamPiped/documentation/refs/heads/main/content/docs/public-instances/index.md", nil)
-		if err != nil {
-			log.Print(err)
-			continue
-		}
-		req.Header.Set("User-Agent", "Piped-Instances-API/(https://github.com/TeamPiped/instances-api)")
-		resp, err := client.Do(req)
-		if err != nil {
-			log.Print(err)
-			continue
-		}
 
 		// Find Latest Commit from GitHub
 		var latest string
@@ -323,67 +366,54 @@ func monitorInstances() {
 			}
 			latest = commits[0].GetSHA()
 		}
+		instancesMap := make(map[int]Instance)
 
-		if resp.StatusCode == 200 {
-			// parse the response
-			buf := new(strings.Builder)
-			_, err := io.Copy(buf, resp.Body)
+		wg := sync.WaitGroup{}
 
-			if err != nil {
-				log.Print(err)
-				continue
-			}
-
-			lines := strings.Split(buf.String(), "\n")
-
-			instancesMap := make(map[int]Instance)
-
-			wg := sync.WaitGroup{}
-
-			skipped := 0
-			checking := 0
-			for _, line := range lines {
-				split := strings.Split(line, "|")
-
-				if len(split) < 5 {
-					continue
-				}
-
-				// skip first two table lines
-				if skipped < 2 {
-					skipped++
-					continue
-				}
-
-				wg.Add(1)
-				go func(i int, split []string) {
-					defer wg.Done()
-					instance, err := getInstanceDetails(split, latest)
-					if err == nil {
-						instancesMap[i] = instance
-					} else {
-						log.Print(err)
-					}
-				}(checking, split)
-				checking++
-			}
-			wg.Wait()
-
-			// Map to ordered array
-			var instances []Instance
-			for i := 0; i < checking; i++ {
-				instance, ok := instancesMap[i]
-				if ok {
-					instances = append(instances, instance)
-				}
-			}
-
-			// update the global instances variable
-			monitored_instances = instances
+		instanceBaseInfos, err := getInstancesBaseList()
+		if err != nil {
+			continue
 		}
-		_ = resp.Body.Close()
+		for i, instance := range instanceBaseInfos {
+			wg.Add(1)
+
+			go func(i int, instance Instance) {
+				defer wg.Done()
+				instance, err := getInstanceDetails(instance, latest)
+				if err == nil {
+					instancesMap[i] = instance
+				} else {
+					log.Print(err)
+				}
+			}(i, instance)
+		}
+		wg.Wait()
+
+		// Map to ordered array
+		var instances []Instance
+		for i := 0; i < len(instanceBaseInfos); i++ {
+			instance, ok := instancesMap[i]
+			if ok {
+				instances = append(instances, instance)
+			}
+		}
+
+		// update the global instances variable
+		monitored_instances = instances
+
 		time.Sleep(time.Minute)
 	}
+}
+
+func getInactiveInstances(intervalHours int) []Instance {
+	var inactive []Instance
+	for _, instance := range base_instance_infos {
+		uptime, err := getUptimePercentage(instance.ApiUrl, intervalHours)
+		if err == nil && uptime == 0 {
+			inactive = append(inactive, instance)
+		}
+	}
+	return inactive
 }
 
 func main() {
@@ -409,6 +439,15 @@ func main() {
 
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(monitored_instances)
+	})
+	app.Get("/inactive", func(c *fiber.Ctx) error {
+		return c.JSON(getInactiveInstances(30 * 24))
+	})
+	app.Get("/inactive/7", func(c *fiber.Ctx) error {
+		return c.JSON(getInactiveInstances(7 * 24))
+	})
+	app.Get("/inactive/30", func(c *fiber.Ctx) error {
+		return c.JSON(getInactiveInstances(30 * 24))
 	})
 
 	err := app.Listen(":3000")
