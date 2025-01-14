@@ -51,14 +51,6 @@ type FrontendConfig struct {
 	RegistrationDisabled bool   `json:"registrationDisabled"`
 }
 
-type PipedStreams struct {
-	Url string `json:"url"`
-}
-
-type Streams struct {
-	VideoStreams []PipedStreams `json:"videoStreams"`
-}
-
 var client = http.Client{
 	Timeout: 10 * time.Second,
 }
@@ -113,23 +105,6 @@ func getConfig(ApiUrl string) (FrontendConfig, error) {
 	return config, nil
 }
 
-func getStreams(ApiUrl string, VideoId string) (Streams, error) {
-	resp, err := testUrl(ApiUrl + "/streams/" + VideoId)
-	if err != nil {
-		return Streams{}, err
-	}
-	bytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return Streams{}, err
-	}
-	var streams Streams
-	err = json.Unmarshal(bytes, &streams)
-	if err != nil {
-		return Streams{}, err
-	}
-	return streams, nil
-}
-
 func storeUptimeHistory(apiUrl string, uptimeStatus bool) {
 	// Create a new point
 	p := influxdb3.NewPointWithMeasurement("uptime").
@@ -175,7 +150,7 @@ func getInstanceDetails(split []string, latest string) (Instance, error) {
 	wg := sync.WaitGroup{}
 	errorChannel := make(chan error, 9)
 	// the amount of tests to do
-	wg.Add(6)
+	wg.Add(5)
 	// Add 3 more for uptime history
 	wg.Add(3)
 
@@ -245,23 +220,6 @@ func getInstanceDetails(split []string, latest string) (Instance, error) {
 		var err error
 		cacheWorking, err = testCaching(ApiUrl)
 		if err != nil {
-			errorChannel <- err
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		// check if instance can fetch videos
-		streams, err := getStreams(ApiUrl, "jNQXAC9IVRw")
-		if err != nil {
-			errorChannel <- err
-			return
-		}
-		if len(streams.VideoStreams) == 0 {
-			errorChannel <- errors.New("no streams")
-		}
-		// head request to check first stream
-		if _, err := testUrl(streams.VideoStreams[0].Url); err != nil {
 			errorChannel <- err
 		}
 	}()
