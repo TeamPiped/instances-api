@@ -2,7 +2,7 @@ module github.com/TeamPiped/instances-api/v2
 
 go 1.22.7
 
-toolchain go1.23.4
+toolchain go1.23.5
 
 require (
 	github.com/InfluxCommunity/influxdb3-go v0.14.0
