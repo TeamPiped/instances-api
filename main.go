@@ -23,8 +23,11 @@ import (
 	"github.com/google/go-github/v62/github"
 )
 
-var base_instance_infos = []Instance{}
+const INTERVAL_WEEK_IN_HOURS = 7 * 24
+const INTERVAL_MONTH_IN_HOURS = 30 * 24
+
 var monitored_instances = []Instance{}
+var inactive_instances = map[int][]Instance{}
 
 var number_re = regexp.MustCompile(`(?m)(\d+)`)
 
@@ -334,7 +337,6 @@ func getInstancesBaseList() ([]Instance, error) {
 		}
 		instances = append(instances, instance)
 	}
-	base_instance_infos = instances
 
 	return instances, nil
 }
@@ -401,19 +403,32 @@ func monitorInstances() {
 		// update the global instances variable
 		monitored_instances = instances
 
+		// update the list of inactive instances
+		updateInactiveInstances(instanceBaseInfos, INTERVAL_WEEK_IN_HOURS)
+		updateInactiveInstances(instanceBaseInfos, INTERVAL_MONTH_IN_HOURS)
+
 		time.Sleep(time.Minute)
 	}
 }
 
-func getInactiveInstances(intervalHours int) []Instance {
+func updateInactiveInstances(instances []Instance, intervalHours int) {
 	var inactive []Instance
-	for _, instance := range base_instance_infos {
+	for _, instance := range instances {
 		uptime, err := getUptimePercentage(instance.ApiUrl, intervalHours)
 		if err == nil && uptime == 0 {
 			inactive = append(inactive, instance)
 		}
 	}
-	return inactive
+	inactive_instances[intervalHours] = inactive
+}
+
+func getInactiveInstances(intervalHours int) any {
+	instances, ok := inactive_instances[intervalHours]
+	if !ok {
+		return fiber.Map{"error": fmt.Sprintf("No data for time interval %d hours yet!", intervalHours)}
+	}
+
+	return instances
 }
 
 func main() {
@@ -441,13 +456,13 @@ func main() {
 		return c.JSON(monitored_instances)
 	})
 	app.Get("/inactive", func(c *fiber.Ctx) error {
-		return c.JSON(getInactiveInstances(30 * 24))
+		return c.JSON(getInactiveInstances(INTERVAL_MONTH_IN_HOURS))
 	})
 	app.Get("/inactive/7", func(c *fiber.Ctx) error {
-		return c.JSON(getInactiveInstances(7 * 24))
+		return c.JSON(getInactiveInstances(INTERVAL_WEEK_IN_HOURS))
 	})
 	app.Get("/inactive/30", func(c *fiber.Ctx) error {
-		return c.JSON(getInactiveInstances(30 * 24))
+		return c.JSON(getInactiveInstances(INTERVAL_MONTH_IN_HOURS))
 	})
 
 	err := app.Listen(":3000")
