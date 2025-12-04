@@ -1,6 +1,6 @@
 module github.com/TeamPiped/instances-api/v2
 
-go 1.22.7
+go 1.24.0
 
 toolchain go1.25.5
 
@@ -8,6 +8,7 @@ require (
 	github.com/InfluxCommunity/influxdb3-go v0.14.0
 	github.com/gofiber/fiber/v2 v2.52.10
 	github.com/google/go-github/v62 v62.0.0
+	github.com/google/go-github/v80 v80.0.0
 )
 
 require (
