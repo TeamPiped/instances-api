@@ -1,6 +1,6 @@
 module github.com/TeamPiped/instances-api/v2
 
-go 1.22.7
+go 1.25.0
 
 toolchain go1.27.1
 
@@ -8,6 +8,7 @@ require (
 	github.com/InfluxCommunity/influxdb3-go v0.14.0
 	github.com/gofiber/fiber/v2 v2.52.15
 	github.com/google/go-github/v62 v62.0.0
+	github.com/google/go-github/v90 v90.0.0
 )
 
 require (
@@ -15,7 +16,7 @@ require (
 	github.com/apache/arrow/go/v15 v15.0.2 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/google/flatbuffers v24.3.7+incompatible // indirect
-	github.com/google/go-querystring v1.1.0 // indirect
+	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/influxdata/line-protocol/v2 v2.2.1 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
